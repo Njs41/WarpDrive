@@ -51,22 +51,25 @@ public class PortalEngine implements IPlayerPortal, IConfigurationChanged, IPlay
 		this.console.logInformation("%d portals loaded in %d worlds.", portalCount, portals.size());
 	}
 
-	public void teleportPlayer(final PortalWarp portal, final IPlayer player)
+	public void teleportEntity(final PortalWarp portal, final IEntity entity)
 	{
-		this.debugger.debugFine("Teleporting player in portal: " + player.getName());
+		if (entity instanceof IPlayer)
+			this.debugger.debugFine("Teleporting player in portal: " + ((IPlayer) entity).getName());
+		else
+			this.debugger.debugFine("Teleporting entity in portal: " + entity.getUniqueId().toString());
 		this.debugger.debugFine("Portal lock state: " + (portal.isLocked() ? "locked" : "unlocked"));
 
 		if (portal.getType() == PortalType.NORMAL)
-			scheduler.startSyncTask(() -> player.teleport(portal.getLocation()), 0);
+			scheduler.startSyncTask(() -> entity.teleport(portal.getLocation()), 0);
 
 		if (portal.getType() == PortalType.RANDOM_SURFACE)
-			this.smartWarpDrive.EngageSurface(player, portal.getWorld(), portal.isLocked());
+			this.smartWarpDrive.EngageSurface(entity, portal.getWorld(), portal.isLocked());
 
 		if (portal.getType() == PortalType.RANDOM_CAVE)
-			this.smartWarpDrive.EngageCave(player, portal.getWorld(), portal.isLocked());
+			this.smartWarpDrive.EngageCave(entity, portal.getWorld(), portal.isLocked());
 
 		if (portal.getType() == PortalType.RANDOM_RADIUS)
-			this.randomRadiusTeleport(player, portal.getLocation(), portal.getRadius());
+			this.randomRadiusTeleport(entity, portal.getLocation(), portal.getRadius());
 
 		portal.setLocked(false);
 	}
@@ -90,7 +93,7 @@ public class PortalEngine implements IPlayerPortal, IConfigurationChanged, IPlay
 				warp.setLocked(true);
 	}
 
-	private void randomRadiusTeleport(final IPlayer player, ILocation theLocation, int radius)
+	private void randomRadiusTeleport(final IEntity entity, ILocation theLocation, int radius)
 	{
 		final ILocation location = theLocation.clone();
 		int highX = location.getBlockX() + radius;
@@ -107,7 +110,7 @@ public class PortalEngine implements IPlayerPortal, IConfigurationChanged, IPlay
 			location.setZ(this.getRandom(lowZ, highZ));
 		}
 
-		scheduler.startSyncTask(() -> player.teleport(location), 0);
+		scheduler.startSyncTask(() -> entity.teleport(location), 0);
 	}
 
 	private int getRandom(int low, int high)
@@ -148,7 +151,7 @@ public class PortalEngine implements IPlayerPortal, IConfigurationChanged, IPlay
 
 				debugger.debugFine("Player %s using portal %s in world %s.", player.getName(), portal.getID(), portal.getWorldName());
 				if (portal.canTeleport(player))
-					this.teleportPlayer(portal, player);
+					this.teleportEntity(portal, player);
 				else
 					player.sendColouredMessage("&cYou do not have permission to use this portal.");
 				return false;
@@ -182,7 +185,7 @@ public class PortalEngine implements IPlayerPortal, IConfigurationChanged, IPlay
 		return true;
 	}
 
-	private void netherTeleport(ILocation location, IPlayer player)
+	private void netherTeleport(ILocation location, IEntity entity)
 	{
 		IChunk chunk = location.getChunk();
 
@@ -195,7 +198,7 @@ public class PortalEngine implements IPlayerPortal, IConfigurationChanged, IPlay
 		else if (location.getY() < netherMinY)
 			location.setY(netherMinY);
 
-		// Build a platform for the player to stand on.
+		// Build a platform for the entity to stand on.
 		ILocation blockLocation = location.clone();
 		if (!blockLocation.getBlock().is(Item.Unavailable.Portal))
 			blockLocation.getBlock().set(Item.Unavailable.Air);
@@ -205,7 +208,7 @@ public class PortalEngine implements IPlayerPortal, IConfigurationChanged, IPlay
 		if (!blockLocation.getBlock().is(Item.Unavailable.Portal))
 			blockLocation.getBlock().set(Item.Unavailable.Air);
 
-		player.teleport(location); // Teleport the player.
+		entity.teleport(location); // Teleport the entity.
 	}
 
 	@Override
@@ -238,14 +241,15 @@ public class PortalEngine implements IPlayerPortal, IConfigurationChanged, IPlay
 		portals.get(portalWorld.getName()).put(warp.getID(), warp);
 	}
 
-	public void finalizeWarp(IPlayer player)
+	public void finalizeWarp(IEntity entity)
 	{
-		IRegion3D portalArea = scanArea(player.getLocation());
-		PortalWarp warp = pending.get(player);
+		IRegion3D portalArea = scanArea(entity.getLocation());
+		PortalWarp warp = pending.get(entity);
 		warp.setRegion(portalArea);
-		warp.setLocation(player.getLocation());
-		pending.remove(player);
-		String worldName = player.getWorldName();
+		warp.setLocation(entity.getLocation());
+		pending.remove(entity);
+		IWorld world = entity.getWorld();
+		String worldName = world != null ? world.getName() : "";
 		if (!portals.containsKey(worldName)) // Check if we're missing a container for this world.
 			portals.put(worldName, new HashMap<>()); // Create a new warp container.
 
@@ -346,7 +350,7 @@ public class PortalEngine implements IPlayerPortal, IConfigurationChanged, IPlay
 				continue;
 
 			if (portal.canTeleport(player))
-				teleportPlayer(portal, player);
+				teleportEntity(portal, player);
 			else
 				player.sendColouredMessage("&cYou do not have permission to use this portal.");
 			return;

@@ -1,12 +1,12 @@
 package no.runsafe.warpdrive.smartwarp;
 
 import no.runsafe.framework.api.*;
+import no.runsafe.framework.api.entity.IEntity;
 import no.runsafe.framework.api.event.player.IPlayerDamageEvent;
 import no.runsafe.framework.api.event.plugin.IConfigurationChanged;
 import no.runsafe.framework.api.event.plugin.IPluginDisabled;
 import no.runsafe.framework.api.log.IConsole;
 import no.runsafe.framework.api.player.IPlayer;
-import no.runsafe.framework.api.server.IPlayerProvider;
 import no.runsafe.framework.minecraft.event.entity.RunsafeEntityDamageEvent;
 import no.runsafe.framework.timer.ForegroundWorker;
 import no.runsafe.warpdrive.Engine;
@@ -15,27 +15,26 @@ import no.runsafe.warpdrive.database.SmartWarpChunkRepository;
 import java.util.ArrayList;
 import java.util.List;
 
-public class SmartWarpDrive extends ForegroundWorker<String, ILocation>
+public class SmartWarpDrive extends ForegroundWorker<IEntity, ILocation>
 	implements IPlayerDamageEvent, IConfigurationChanged, IPluginDisabled
 {
-	public SmartWarpDrive(IScheduler scheduler, SmartWarpChunkRepository smartWarpChunks, Engine engine, IPlayerProvider playerProvider, IConsole console)
+	public SmartWarpDrive(IScheduler scheduler, SmartWarpChunkRepository smartWarpChunks, Engine engine, IConsole console)
 	{
 		super(scheduler);
 		this.scheduler = scheduler;
 		this.smartWarpChunks = smartWarpChunks;
 		this.engine = engine;
-		this.playerProvider = playerProvider;
 		this.console = console;
 		setInterval(10);
 	}
 
-	public void EngageSurface(IPlayer player, IWorld target, boolean lock)
+	public void EngageSurface(IEntity entity, IWorld target, boolean lock)
 	{
 		if (lockedSurfaceLocation != null)
 		{
 			if (skyFall)
-				fallen.add(player);
-			Push(player.getName(), lockedSurfaceLocation);
+				fallen.add(entity);
+			Push(entity, lockedSurfaceLocation);
 			return;
 		}
 		ILocation candidate = new ChunkScanner(scheduler, smartWarpChunks, target, false, engine).find();
@@ -43,7 +42,7 @@ public class SmartWarpDrive extends ForegroundWorker<String, ILocation>
 			return;
 		if (skyFall)
 		{
-			fallen.add(player);
+			fallen.add(entity);
 			candidate.setY(300);
 			candidate.setPitch(90);
 		}
@@ -52,14 +51,14 @@ public class SmartWarpDrive extends ForegroundWorker<String, ILocation>
 			lockedSurfaceLocation = candidate;
 			scheduler.startSyncTask(this::unlockSurface, 20);
 		}
-		Push(player.getName(), candidate);
+		Push(entity, candidate);
 	}
 
-	public void EngageCave(IPlayer player, IWorld target, boolean lock)
+	public void EngageCave(IEntity entity, IWorld target, boolean lock)
 	{
 		if (lockedCaveLocation != null)
 		{
-			Push(player.getName(), lockedCaveLocation);
+			Push(entity, lockedCaveLocation);
 			return;
 		}
 		ILocation candidate = new ChunkScanner(scheduler, smartWarpChunks, target, true, engine).find();
@@ -70,18 +69,14 @@ public class SmartWarpDrive extends ForegroundWorker<String, ILocation>
 			lockedCaveLocation = candidate;
 			scheduler.startSyncTask(this::unlockCave, 20);
 		}
-		Push(player.getName(), candidate);
+		Push(entity, candidate);
 	}
 
 	@Override
-	public void process(String playerName, ILocation target)
+	public void process(IEntity entity, ILocation target)
 	{
-		IPlayer player = playerProvider.getPlayerExact(playerName);
-		if (player == null)
-			return;
-
-		if (!player.teleport(target) && fallen.contains(player))
-			fallen.remove(player);
+		if (!entity.teleport(target) && fallen.contains(entity))
+			fallen.remove(entity);
 	}
 
 	@Override
@@ -108,10 +103,10 @@ public class SmartWarpDrive extends ForegroundWorker<String, ILocation>
 	{
 		if (!fallen.isEmpty())
 			console.logInformation("Teleporting %d falling players due to plugin shutdown.", fallen.size());
-		for (IPlayer player : fallen)
+		for (IEntity entity : fallen)
 		{
-			if (player != null)
-				player.teleport(player.getLocation().findTop());
+			if (entity != null)
+				entity.teleport(entity.getLocation().findTop());
 		}
 	}
 
@@ -128,10 +123,9 @@ public class SmartWarpDrive extends ForegroundWorker<String, ILocation>
 	private ILocation lockedCaveLocation;
 	private ILocation lockedSurfaceLocation;
 	private boolean skyFall = false;
-	private final List<IPlayer> fallen = new ArrayList<>(0);
+	private final List<IEntity> fallen = new ArrayList<>(0);
 	private final IScheduler scheduler;
 	private final SmartWarpChunkRepository smartWarpChunks;
 	private final Engine engine;
-	private final IPlayerProvider playerProvider;
 	private final IConsole console;
 }

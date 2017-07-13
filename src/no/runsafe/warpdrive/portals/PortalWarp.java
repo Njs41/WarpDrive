@@ -2,6 +2,7 @@ package no.runsafe.warpdrive.portals;
 
 import no.runsafe.framework.api.ILocation;
 import no.runsafe.framework.api.IWorld;
+import no.runsafe.framework.api.entity.IEntity;
 import no.runsafe.framework.api.player.IPlayer;
 import no.runsafe.framework.api.vector.IRegion3D;
 import no.runsafe.warpdrive.WarpDrive;
@@ -76,15 +77,15 @@ public class PortalWarp
 		return location;
 	}
 
-	public boolean isInPortal(IPlayer player)
+	public boolean isInPortal(IEntity entity)
 	{
 		if (region != null)
 		{
-			WarpDrive.debug.debugFine("Checking if %s is within %s", player.getLocation(), region);
-			return region.contains(player.getLocation().getPoint());
+			WarpDrive.debug.debugFine("Checking if %s is within %s", entity.getLocation(), region);
+			return region.contains(entity.getLocation().getPoint());
 		}
-		WarpDrive.debug.debugFine("Checking if %s is close to %s", player.getLocation(), location);
-		return player.getLocation().distance(this.location) < 2;
+		WarpDrive.debug.debugFine("Checking if %s is close to %s", entity.getLocation(), location);
+		return entity.getLocation().distance(this.location) < 2;
 	}
 
 	public int getRadius()
