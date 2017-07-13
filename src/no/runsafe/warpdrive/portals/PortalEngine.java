@@ -75,19 +75,19 @@ public class PortalEngine implements IPlayerPortal, IConfigurationChanged, IPlay
 	public void OnPlayerInteractEvent(RunsafePlayerInteractEvent event)
 	{
 		IBlock block = event.getBlock();
-		if (block != null && block.is(Item.Redstone.Button.Stone))
-		{
-			IPlayer player = event.getPlayer();
-			IWorld world = player.getWorld();
+		if (block == null || !block.is(Item.Redstone.Button.Stone))
+			return;
 
-			if (world != null && portals.containsKey(world.getName()))
-			{
-				Collection<PortalWarp> portalList = portals.get(world.getName()).values();
-				for (PortalWarp warp : portalList)
-					if (warp.getPortalLocation().distance(block.getLocation()) < 5)
-						warp.setLocked(true);
-			}
-		}
+		IPlayer player = event.getPlayer();
+		IWorld world = player.getWorld();
+
+		if (world == null || !portals.containsKey(world.getName()))
+			return;
+
+		Collection<PortalWarp> portalList = portals.get(world.getName()).values();
+		for (PortalWarp warp : portalList)
+			if (warp.getPortalLocation().distance(block.getLocation()) < 5)
+				warp.setLocked(true);
 	}
 
 	private void randomRadiusTeleport(final IPlayer player, ILocation theLocation, int radius)
@@ -143,15 +143,15 @@ public class PortalEngine implements IPlayerPortal, IConfigurationChanged, IPlay
 		{
 			for (PortalWarp portal : this.portals.get(worldName).values())
 			{
-				if (portal.isInPortal(player))
-				{
-					debugger.debugFine("Player %s using portal %s in world %s.", player.getName(), portal.getID(), portal.getWorldName());
-					if (portal.canTeleport(player))
-						this.teleportPlayer(portal, player);
-					else
-						player.sendColouredMessage("&cYou do not have permission to use this portal.");
-					return false;
-				}
+				if (!portal.isInPortal(player))
+					continue;
+
+				debugger.debugFine("Player %s using portal %s in world %s.", player.getName(), portal.getID(), portal.getWorldName());
+				if (portal.canTeleport(player))
+					this.teleportPlayer(portal, player);
+				else
+					player.sendColouredMessage("&cYou do not have permission to use this portal.");
+				return false;
 			}
 		}
 		if (pending.containsKey(player))
@@ -325,31 +325,31 @@ public class PortalEngine implements IPlayerPortal, IConfigurationChanged, IPlay
 	@Override
 	public void OnPlayerCustomEvent(RunsafeCustomEvent event)
 	{
-		if (event.getEvent().equals("region.enter"))
+		if (!event.getEvent().equals("region.enter"))
+			return;
+
+		final IPlayer player = event.getPlayer();
+		String playerWorld = player.getWorldName();
+
+		if (playerWorld == null)
+			return;
+
+		Map<String, String> data = (Map<String, String>) event.getData();
+		String regionName = data.get("region");
+
+		if (!portals.containsKey(playerWorld))
+			return;
+
+		for (PortalWarp portal : portals.get(playerWorld).values())
 		{
-			final IPlayer player = event.getPlayer();
-			String playerWorld = player.getWorldName();
+			if (!portal.hasEnterRegion() || !portal.getEnterRegion().equals(regionName))
+				continue;
 
-			if (playerWorld == null)
-				return;
-
-			Map<String, String> data = (Map<String, String>) event.getData();
-			String regionName = data.get("region");
-
-			if (portals.containsKey(playerWorld))
-			{
-				for (PortalWarp portal : portals.get(playerWorld).values())
-				{
-					if (portal.hasEnterRegion() && portal.getEnterRegion().equals(regionName))
-					{
-						if (portal.canTeleport(player))
-							teleportPlayer(portal, player);
-						else
-							player.sendColouredMessage("&cYou do not have permission to use this portal.");
-						return;
-					}
-				}
-			}
+			if (portal.canTeleport(player))
+				teleportPlayer(portal, player);
+			else
+				player.sendColouredMessage("&cYou do not have permission to use this portal.");
+			return;
 		}
 	}
 
