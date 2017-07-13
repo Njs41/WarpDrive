@@ -3,6 +3,7 @@ package no.runsafe.warpdrive.portals;
 import no.runsafe.framework.api.*;
 import no.runsafe.framework.api.block.IBlock;
 import no.runsafe.framework.api.chunk.IChunk;
+import no.runsafe.framework.api.entity.IEntity;
 import no.runsafe.framework.api.event.player.IPlayerCustomEvent;
 import no.runsafe.framework.api.event.player.IPlayerInteractEvent;
 import no.runsafe.framework.api.event.player.IPlayerPortal;
@@ -153,7 +154,7 @@ public class PortalEngine implements IPlayerPortal, IConfigurationChanged, IPlay
 				}
 			}
 		}
-		if (pending.containsKey(player.getName()))
+		if (pending.containsKey(player))
 		{
 			finalizeWarp(player);
 			return OnPlayerPortal(player, from, to);
@@ -227,7 +228,7 @@ public class PortalEngine implements IPlayerPortal, IConfigurationChanged, IPlay
 	public void createWarp(IPlayer creator, String portalName, ILocation destination, PortalType type, String permission) throws NullPointerException
 	{
 		PortalWarp warp = new PortalWarp(portalName, null, destination, type, -1, permission, null, null); // Create new warp.
-		pending.put(creator.getName(), warp);
+		pending.put(creator, warp);
 	}
 
 	public void createRegionWarp(IWorld portalWorld, String region, String portalName, ILocation destination, String permission)
@@ -240,10 +241,10 @@ public class PortalEngine implements IPlayerPortal, IConfigurationChanged, IPlay
 	public void finalizeWarp(IPlayer player)
 	{
 		IRegion3D portalArea = scanArea(player.getLocation());
-		PortalWarp warp = pending.get(player.getName());
+		PortalWarp warp = pending.get(player);
 		warp.setRegion(portalArea);
 		warp.setLocation(player.getLocation());
-		pending.remove(player.getName());
+		pending.remove(player);
 		String worldName = player.getWorldName();
 		if (!portals.containsKey(worldName)) // Check if we're missing a container for this world.
 			portals.put(worldName, new HashMap<>()); // Create a new warp container.
@@ -353,7 +354,7 @@ public class PortalEngine implements IPlayerPortal, IConfigurationChanged, IPlay
 	}
 
 	private List<String> netherWorlds = new ArrayList<>();
-	private final Map<String, PortalWarp> pending = new ConcurrentHashMap<>();
+	private final Map<IEntity, PortalWarp> pending = new ConcurrentHashMap<>();
 	private final Map<String, Map<String, PortalWarp>> portals = new HashMap<>();
 	private final PortalRepository repository;
 	private final SmartWarpDrive smartWarpDrive;
