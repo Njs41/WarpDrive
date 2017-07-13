@@ -1,5 +1,6 @@
 package no.runsafe.warpdrive.portals;
 
+import no.runsafe.framework.api.ILocation;
 import no.runsafe.framework.api.database.IRow;
 import no.runsafe.framework.api.database.ISchemaUpdate;
 import no.runsafe.framework.api.database.Repository;
@@ -34,10 +35,20 @@ public class PortalRepository extends Repository
 				if (row.String("region") != null)
 					WarpDrive.debug.debugFine("Portal %s has region: %s", portalID, row.String("region"));
 
+				ILocation from = row.Location();
+				ILocation to = row.Location("destWorld", "destX", "destY", "destZ", "destYaw", "destPitch");
+				if (from == null || to == null)
+				{
+					WarpDrive.debug.debugWarning(
+						"Invalid portal %s with region: %s", portalID, row.String("region")
+					);
+					continue;
+				}
+
 				warps.add(new PortalWarp(
 					portalID,
-					row.Location(),
-					row.Location("destWorld", "destX", "destY", "destZ", "destYaw", "destPitch"),
+					from,
+					to,
 					PortalType.getPortalType(row.Integer("type")),
 					(row.Integer("radius") == null ? 0 : row.Integer("radius")),
 					row.String("permission"),
