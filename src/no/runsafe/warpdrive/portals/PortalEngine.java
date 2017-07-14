@@ -4,6 +4,8 @@ import no.runsafe.framework.api.*;
 import no.runsafe.framework.api.block.IBlock;
 import no.runsafe.framework.api.chunk.IChunk;
 import no.runsafe.framework.api.entity.IEntity;
+import no.runsafe.framework.api.entity.projectiles.IProjectile;
+import no.runsafe.framework.api.event.entity.IEntityPortal;
 import no.runsafe.framework.api.event.player.IPlayerCustomEvent;
 import no.runsafe.framework.api.event.player.IPlayerInteractEvent;
 import no.runsafe.framework.api.event.player.IPlayerPortal;
@@ -23,7 +25,9 @@ import no.runsafe.warpdrive.smartwarp.SmartWarpDrive;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class PortalEngine implements IPlayerPortal, IConfigurationChanged, IPlayerInteractEvent, IPlayerCustomEvent
+public class PortalEngine
+	implements IPlayerPortal, IConfigurationChanged, IPlayerInteractEvent,
+	IPlayerCustomEvent, IEntityPortal
 {
 	public PortalEngine(PortalRepository repository, SmartWarpDrive smartWarpDrive, IDebug debugger, IConsole console, IScheduler scheduler, IWorldManager worldManager)
 	{
@@ -137,30 +141,55 @@ public class PortalEngine implements IPlayerPortal, IConfigurationChanged, IPlay
 	public boolean OnPlayerPortal(IPlayer player, ILocation from, ILocation to)
 	{
 		this.debugger.debugFiner("Portal event detected: " + player.getName());
-		IWorld playerWorld = player.getWorld();
-		if (playerWorld == null)
+		return entityPortal(player, from, to);
+	}
+
+	@Override
+	public boolean OnEntityPortal(IEntity entity, ILocation from, ILocation to)
+	{
+		this.debugger.debugFiner("Portal event detected for entity: " + entity.getEntityType());
+		return !(entity instanceof IProjectile) && entityPortal(entity, from, to);
+	}
+
+	private boolean entityPortal(IEntity entity, ILocation from, ILocation to)
+	{
+		IWorld world = entity.getWorld();
+		if (world == null)
 			return false;
 
-		String worldName = playerWorld.getName();
+		String worldName = world.getName();
 		if (portals.containsKey(worldName))
 		{
 			for (PortalWarp portal : this.portals.get(worldName).values())
 			{
-				if (!portal.isInPortal(player))
+				if (!portal.isInPortal(entity))
 					continue;
 
-				debugger.debugFine("Player %s using portal %s in world %s.", player.getName(), portal.getID(), portal.getWorldName());
-				if (portal.canTeleport(player))
-					this.teleportEntity(portal, player);
+				if (entity instanceof IPlayer)
+				{
+					IPlayer player = (IPlayer) entity;
+					debugger.debugFine("Player %s using portal %s in world %s.", player.getName(), portal.getID(), portal.getWorldName());
+					if (portal.canTeleport(player))
+						this.teleportEntity(portal, player);
+					else
+						player.sendColouredMessage("&cYou do not have permission to use this portal.");
+				}
 				else
-					player.sendColouredMessage("&cYou do not have permission to use this portal.");
+				{
+					debugger.debugFine("Entity %s using portal %s in world %s.", entity.getUniqueId().toString(), portal.getID(), portal.getWorldName());
+					this.teleportEntity(portal, entity);
+				}
+
 				return false;
 			}
 		}
-		if (pending.containsKey(player))
+		if (pending.containsKey(entity))
 		{
-			finalizeWarp(player);
-			return OnPlayerPortal(player, from, to);
+			finalizeWarp(entity);
+			if (entity instanceof IPlayer)
+				return OnPlayerPortal((IPlayer) entity, from, to);
+			else
+				return OnEntityPortal(entity, from, to);
 		}
 
 		if (netherWorlds.contains(worldName))
@@ -168,16 +197,16 @@ public class PortalEngine implements IPlayerPortal, IConfigurationChanged, IPlay
 			IWorld netherWorld = worldManager.getWorld(worldName + "_nether");
 			if (netherWorld != null)
 			{
-				netherTeleport(netherWorld.getLocation(from.getX(), from.getY() / 2, from.getZ()), player);
+				netherTeleport(netherWorld.getLocation(from.getX(), from.getY() / 2, from.getZ()), entity);
 				return false;
 			}
 		}
 		else if (worldName.contains("_nether"))
 		{
-			IWorld world = worldManager.getWorld(worldName.replace("_nether", ""));
-			if (world != null)
+			IWorld destinationWorld = worldManager.getWorld(worldName.replace("_nether", ""));
+			if (destinationWorld != null)
 			{
-				netherTeleport(world.getLocation(from.getX(), from.getY() * 2, from.getZ()), player);
+				netherTeleport(destinationWorld.getLocation(from.getX(), from.getY() * 2, from.getZ()), entity);
 				return false;
 			}
 		}
